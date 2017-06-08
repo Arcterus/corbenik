@@ -12,8 +12,13 @@
 #include <std/fs.h>            // for crclose, cropen, crread, crsize, recur...
 #include <std/memory.h>        // for memfind, strdup_self
 #include <structures.h>        // for PATH_BITS, PATH_CHAINS
+#include <firm/headers.h>      // for FIRM_MAGIC
 #include <option.h>        // for get_opt_u32
 #include "ctr9/io/fatfs/ff.h"  // for FILINFO, f_stat, ::FR_OK, AM_DIR
+
+#define BOOTSTRAP_ADDR ((uint8_t*)0x24F00000)
+#define CAKEHAX_ADDR_FCRAM ((uint8_t*)0x23FFFE00)
+#define CAKEHAX_ADDR_VRAM ((uint8_t*)0x1FFFF000 + 0x4)
 
 uint32_t current_chain_index = 0;
 struct options_s *chains = NULL;
@@ -21,6 +26,19 @@ struct options_s *chains = NULL;
 // TODO - The near same function is called in different places. It would
 //        be better to have a recursive listing that calls a function for
 //        each entry (it would cut code density)
+
+uint8_t *read_bin(const char *path, uint8_t *output, uint32_t *size) {
+    FILE *f = cropen(path, "r");
+    if(!f) {
+        return NULL;
+    }
+
+    *size = crsize(f);
+    crread(output, 1, *size, f);
+    crclose(f);
+
+    return output;
+}
 
 __attribute__ ((noreturn))
 void chainload_file(void* data)
@@ -33,61 +51,56 @@ void chainload_file(void* data)
 
     char code_file[] = PATH_BITS "/chain.bin";
 
-    uint8_t* bootstrap = (uint8_t*)0x24F00000;
+    uint8_t* bootstrap = BOOTSTRAP_ADDR;
     uint32_t size = 0, b_size = 0;
     uint8_t* chain_data;
 
-    FILE* f = cropen(code_file, "r");
-    if (!f) {
+    if (!read_bin(code_file, bootstrap, &b_size)) {
         // File missing.
         panic("Missing chainloader.\n");
     }
 
-    b_size = crsize(f);
-    crread(bootstrap, 1, b_size, f);
-    crclose(f);
-
     chain_data = bootstrap + b_size;
 
-    f = cropen(chain_file, "r");
-    if (!f) {
+    if (!read_bin(chain_file, chain_data, &size)) {
         // File missing.
         panic("Missing program to chainload?\n");
     }
 
-    size = crsize(f);
-    crread(chain_data, 1, size, f);
-    crclose(f);
-
-    fprintf(stderr, "Setting argc, argv...\n");
+    fprintf(stderr, "Setting argc, argv...");
 
     size = size - (size % 4) + 4;
 
     uint32_t* off = (uint32_t*) &chain_data[size];
 
-    off[0] = (uint32_t)off + 4; // char**
-    off[1] = (uint32_t)off + 8; // char*
+    off[0] = (uint32_t)off + 8; // char**
+    off[1] = (uint32_t)off + 12;
+    off[2] = (uint32_t)off + 16; // char*
+    off[3] = (uint32_t)CAKEHAX_ADDR_VRAM;
 
-    char* arg0 = (char*)&off[1];
+    char* arg0 = (char*)&off[4];
     memcpy(arg0, chain_file, strlen(chain_file) + 1);
 
     uint32_t* argc_off = (uint32_t*)memfind(bootstrap, b_size, "ARGC", 4);
     uint32_t* argv_off = (uint32_t*)memfind(bootstrap, b_size, "ARGV", 4);
 
-    argc_off[0] = 1;
-    argv_off[0] = (uint32_t)off;
+    *argc_off = 2;    // FIXME: afaict the payload isn't noticing that this is 2
+    *argv_off = (uint32_t)off;
 
-    fprintf(stderr, "Changing display mode and chainloading...\n");
+    fprintf(stderr, " Done\nChanging display mode and chainloading...\n");
 
     // XXX - Refactor arm11
-    // screen_mode(1, get_opt_u32(OPTION_BRIGHTNESS)); // Because RGBA8 screeninit is non-standard...ugh
+    screen_mode(1, get_opt_u32(OPTION_BRIGHTNESS)); // Because RGBA8 screeninit is non-standard...ugh
 
     // Copy CakeHax struct where it is expected (at 0x23FFFE00)
     // It's very very likely we'll corrupt memory with this, but we aren't coming back anyways as of the
     // next call, so not my problem
-    memcpy((void*)0x23FFFE00, framebuffers, sizeof(struct framebuffers));
+    memcpy((void*)CAKEHAX_ADDR_FCRAM, framebuffers, sizeof(struct framebuffers));
+    memcpy((void*)CAKEHAX_ADDR_VRAM, framebuffers, sizeof(struct framebuffers));    // FIXME: ignored by payload
 
-    ((void(*)(void*, uint32_t))0x24F00000)(chain_data, size + 256 + 8); // Size of payload + argv.
+    uint32_t isFirm = *((uint32_t *)chain_data) == FIRM_MAGIC ? 1 : 0;
+
+    ((void(*)(void*, uint32_t, uint32_t))BOOTSTRAP_ADDR)(chain_data, size + 256 + 16, isFirm); // Size of payload + argv.
 
     while(1);
 }

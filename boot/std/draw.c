@@ -647,10 +647,8 @@ vfprintf(void *channel, const char *format, va_list ap)
 {
     if ((channel == stdout || channel == stderr) && kill_output)
         return;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wdiscarded-qualifiers"
-    char *ref = format;
-#pragma GCC diagnostic pop
+
+    const char *ref = format;
 
     unsigned char *color = NULL;
     if (channel == TOP_SCREEN)

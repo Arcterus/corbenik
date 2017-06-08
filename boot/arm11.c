@@ -41,9 +41,11 @@
 #include <std/draw.h>        // for framebuffers
 #include <util.h>
 
+#define ARM11_ENTRYPOINT ((volatile uint32_t *)0x1FFFFFFC)
+
 struct framebuffers *framebuffers;
 
-volatile uint32_t *arm11Entry = (volatile uint32_t *)0x1FFFFFFC;
+volatile uint32_t *arm11Entry = ARM11_ENTRYPOINT;
 static const uint32_t brightness[4] = {0x26, 0x39, 0x4C, 0x5F};
 
 void invokeArm11Function(void (*func)())
@@ -85,6 +87,36 @@ void updateBrightness(uint32_t brightnessIndex)
         //Change brightness
         *(volatile uint32_t *)0x10202240 = brightnessLevel;
         *(volatile uint32_t *)0x10202A40 = brightnessLevel;
+
+        WAIT_FOR_ARM9();
+    }
+
+    ctr_cache_clean_and_flush_all();
+    invokeArm11Function(ARM11);
+}
+
+void clearScreens(void) {
+    void __attribute__((naked)) ARM11(void)
+    {
+        //Disable interrupts
+        __asm(".word 0xF10C01C0"); // This is actually 'cpsid aif' but gcc doesn't like mixing arm9 and arm11 code.
+
+        //Setting up two simultaneous memory fills using the GPU
+        volatile uint32_t *REGs_PSC0 = (volatile uint32_t *)0x10400010;
+
+        REGs_PSC0[0] = (uint32_t)framebuffers->top_left >> 3; //Start address
+        REGs_PSC0[1] = (uint32_t)(framebuffers->top_left + (400 * 240 * 4)) >> 3; //End address
+        REGs_PSC0[2] = 0; //Fill value
+        REGs_PSC0[3] = (2 << 8) | 1; //32-bit pattern; start
+
+        volatile uint32_t *REGs_PSC1 = (volatile uint32_t *)0x10400020;
+
+        REGs_PSC1[0] = (uint32_t)framebuffers->bottom >> 3; //Start address
+        REGs_PSC1[1] = (uint32_t)(framebuffers->bottom + (320 * 240 * 4)) >> 3; //End address
+        REGs_PSC1[2] = 0; //Fill value
+        REGs_PSC1[3] = (2 << 8) | 1; //32-bit pattern; start
+
+        while(!((REGs_PSC0[3] & 2) && (REGs_PSC1[3] & 2)));
 
         WAIT_FOR_ARM9();
     }
@@ -222,6 +254,8 @@ void screen_mode(uint32_t mode, uint32_t bright_level) {
 
     ctr_cache_clean_and_flush_all();
     invokeArm11Function(ARM11);
+
+    clearScreens();
 
     // Turn on backlight
 //    i2cWriteRegister(I2C_DEV_MCU, 0x22, 1 << 1);

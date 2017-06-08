@@ -94,7 +94,7 @@ main(int argc, char** argv)
                 shut_up(); // This does exactly what it sounds like.
 
             if (have_bg && !si) {
-//                screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
+                screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
                 si = 1;
 
                 clear_disp(TOP_SCREEN);
@@ -102,7 +102,7 @@ main(int argc, char** argv)
             }
         } else {
             if (!si) {
-//                screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
+                screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
                 si = 1;
 
                 clear_disp(TOP_SCREEN);
