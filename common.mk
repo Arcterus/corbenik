@@ -9,7 +9,7 @@ COMMIT_COUNT := $(shell git rev-list --count HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 
 AM_CFLAGS= -std=gnu11 -Os -g -ffast-math \
-	-Wpedantic -Wall -Wextra -Wcast-align -Wcast-qual \
+	-Wall -Wextra -Wcast-align -Wcast-qual \
 	-Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op \
 	-Wmissing-include-dirs -Wredundant-decls -Wunreachable-code -Wmissing-noreturn -Wwrite-strings \
 	-Wshadow -Wsign-conversion -Wstrict-overflow=5 -Wswitch-default \

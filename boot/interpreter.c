@@ -102,6 +102,8 @@ extern int is_n3ds;
 static const char hexDigits[] = "0123456789ABCDEF";
 #endif
 
+#define DISPATCH() goto *dispatch_table[*code]
+
 int
 exec_bytecode(uint8_t *bytecode, uint32_t len, uint16_t ver, int debug)
 {
@@ -115,404 +117,438 @@ exec_bytecode(uint8_t *bytecode, uint32_t len, uint16_t ver, int debug)
 
     int eq = 0, gt = 0, lt = 0, found = 0; // Flags.
 
+    static void *dispatch_table[256] = { &&op_err };
+    dispatch_table[OP_NOP]     = &&op_nop;
+    dispatch_table[OP_REL]     = &&op_rel;
+    dispatch_table[OP_FIND]    = &&op_find;
+    dispatch_table[OP_BACK]    = &&op_back;
+    dispatch_table[OP_FWD]     = &&op_fwd;
+    dispatch_table[OP_SET]     = &&op_set;
+    dispatch_table[OP_TEST]    = &&op_test;
+    dispatch_table[OP_JMP]     = &&op_jmp;
+    dispatch_table[OP_REWIND]  = &&op_rewind;
+    dispatch_table[OP_AND]     = &&op_and;
+    dispatch_table[OP_OR]      = &&op_or;
+    dispatch_table[OP_XOR]     = &&op_xor;
+    dispatch_table[OP_NOT]     = &&op_not;
+    dispatch_table[OP_VER]     = &&op_ver;
+    dispatch_table[OP_CLF]     = &&op_clf;
+    dispatch_table[OP_SEEK]    = &&op_seek;
+    dispatch_table[OP_ABORT]   = &&op_abort;
+    dispatch_table[OP_ABORTEQ] = &&op_aborteq;
+    dispatch_table[OP_ABORTNE] = &&op_abortne;
+    dispatch_table[OP_ABORTLT] = &&op_abortlt;
+    dispatch_table[OP_ABORTGT] = &&op_abortgt;
+    dispatch_table[OP_ABORTF]  = &&op_abortf;
+    dispatch_table[OP_ABORTNF] = &&op_abortnf;
+    dispatch_table[OP_JMPEQ]   = &&op_jmpeq;
+    dispatch_table[OP_JMPNE]   = &&op_jmpne;
+    dispatch_table[OP_JMPLT]   = &&op_jmplt;
+    dispatch_table[OP_JMPGT]   = &&op_jmpgt;
+    dispatch_table[OP_JMPLE]   = &&op_jmple;
+    dispatch_table[OP_JMPF]    = &&op_jmpf;
+    dispatch_table[OP_JMPNF]   = &&op_jmpnf;
+    dispatch_table[OP_INJECT]  = &&op_inject;
+    dispatch_table[OP_STR]     = &&op_str;
+    dispatch_table[OP_NEXT]    = &&op_next;
+
     uint8_t *code = bytecode;
     uint8_t *end = code + len;
     while (code < end && code >= bytecode) {
-        switch (*code) {
-            case OP_NOP:
-                if (debug) {
-                    log("nop\n");
-                }
-                code++;
-                break;
-            case OP_REL: // Change relativity.
-                if (debug) {
+        DISPATCH();
+        op_nop:
+            if (debug) {
+                log("nop\n");
+            }
+            code++;
+            goto vm_sanity_check;
+        op_rel: // Change relativity.
+            if (debug) {
 #ifdef LOADER
-                    log("rel\n");
+                log("rel\n");
 #else
-                    fprintf(stderr, "rel %hhu\n", code[1]);
+                fprintf(stderr, "rel %hhu\n", code[1]);
 #endif
-                }
-                code++;
-                current_mode = &modes[*code];
-                set_mode = *code;
-                code++;
-                break;
-            case OP_FIND: // Find pattern.
-                if (debug) {
+            }
+            code++;
+            current_mode = &modes[*code];
+            set_mode = *code;
+            code++;
+            goto vm_sanity_check;
+        op_find: // Find pattern.
+            if (debug) {
 #ifdef LOADER
-                    log("find\n");
+                log("find\n");
 #else
-                    fprintf(stderr, "find %hhu ...\n", code[1]);
+                fprintf(stderr, "find %hhu ...\n", code[1]);
 #endif
-                }
-                found = 0;
-                new_offset = (size_t)memfind(current_mode->memory + offset, current_mode->size - offset, &code[2], code[1]);
-                if ((uint8_t *)new_offset != NULL) {
-                    // Pattern found, set found state flag
-                    found = 1;
-                    offset = new_offset - (size_t)current_mode->memory;
-                }
-                code += code[1] + 2;
-                break;
-            case OP_BACK:
-                if (debug) {
+            }
+            found = 0;
+            new_offset = (size_t)memfind(current_mode->memory + offset, current_mode->size - offset, &code[2], code[1]);
+            if ((uint8_t *)new_offset != NULL) {
+                // Pattern found, set found state flag
+                found = 1;
+                offset = new_offset - (size_t)current_mode->memory;
+            }
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_back:
+            if (debug) {
 #ifdef LOADER
-                    log("back\n");
+                log("back\n");
 #else
-                    fprintf(stderr, "back %hhu\n", code[1]);
+                fprintf(stderr, "back %hhu\n", code[1]);
 #endif
-                }
-                offset -= code[1];
-                code += 2;
-                break;
-            case OP_FWD:
-                if (debug) {
+            }
+            offset -= code[1];
+            code += 2;
+            goto vm_sanity_check;
+        op_fwd:
+            if (debug) {
 #ifdef LOADER
-                    log("fwd\n");
+                log("fwd\n");
 #else
-                    fprintf(stderr, "fwd %u\n", code[1]);
+                fprintf(stderr, "fwd %u\n", code[1]);
 #endif
-                }
-                offset += code[1];
-                code += 2;
-                break;
-            case OP_SET: // Set data.
-                if (debug) {
+            }
+            offset += code[1];
+            code += 2;
+            goto vm_sanity_check;
+        op_set: // Set data.
+            if (debug) {
 #ifdef LOADER
-                    log("set\n");
+                log("set\n");
 #else
-                    fprintf(stderr, "set %u, ...\n", code[1]);
+                fprintf(stderr, "set %u, ...\n", code[1]);
 #endif
-                }
-                memcpy(current_mode->memory + offset, &code[2], code[1]);
-                offset += code[1];
-                code += code[1] + 2;
-                break;
-            case OP_TEST: // Test data.
-                if (debug) {
+            }
+            memcpy(current_mode->memory + offset, &code[2], code[1]);
+            offset += code[1];
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_test: // Test data.
+            if (debug) {
 #ifdef LOADER
-                    log("test\n");
+                log("test\n");
 #else
-                    fprintf(stderr, "test %u, ...\n", code[1]);
+                fprintf(stderr, "test %u, ...\n", code[1]);
 #endif
-                }
-                eq = memcmp(current_mode->memory + offset, &code[2], code[1]);
-                if (eq < 0)
-                    lt = 1;
-                if (eq > 0)
-                    gt = 1;
-                eq = !eq;
-                code += code[1] + 2;
-                break;
-            case OP_JMP: // Jump to offset.
-                code++;
+            }
+            eq = memcmp(current_mode->memory + offset, &code[2], code[1]);
+            if (eq < 0)
+                lt = 1;
+            if (eq > 0)
+                gt = 1;
+            eq = !eq;
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_jmp: // Jump to offset.
+            code++;
+            code = bytecode + (code[0] + (code[1] << 8));
+            if (debug) {
+#ifdef LOADER
+                log("jmp\n");
+#else
+                fprintf(stderr, "jmp %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmpeq: // Jump to offset if equal
+            code++;
+            if (eq)
                 code = bytecode + (code[0] + (code[1] << 8));
-                if (debug) {
-#ifdef LOADER
-                    log("jmp\n");
-#else
-                    fprintf(stderr, "jmp %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPEQ: // Jump to offset if equal
-                code++;
-                if (eq)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmpeq\n");
-#else
-                    fprintf(stderr, "jmpeq %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPNE: // Jump to offset if not equal
-                code++;
-                if (!eq)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmpne\n");
-#else
-                    fprintf(stderr, "jmpeq %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPLT: // Jump to offset if less than
-                code++;
-                if (lt)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmplt\n");
-#else
-                    fprintf(stderr, "jmplt %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPGT: // Jump to offset if greater than
-                code++;
-                if (gt)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmplt\n");
-#else
-                    fprintf(stderr, "jmplt %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPLE: // Jump to offset if less than or equal
-                code++;
-                if (lt || eq)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmplt\n");
-#else
-                    fprintf(stderr, "jmplt %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPF: // Jump to offset if pattern found
-                code++;
-                if (found)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmplt\n");
-#else
-                    fprintf(stderr, "jmplt %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_JMPNF: // Jump to offset if pattern NOT found
-                code++;
-                if (!found)
-                    code = bytecode + (code[0] + (code[1] << 8));
-                else
-                    code += 2;
-                if (debug) {
-#ifdef LOADER
-                    log("jmplt\n");
-#else
-                    fprintf(stderr, "jmplt %u\n", code - bytecode);
-#endif
-                }
-                break;
-            case OP_CLF: // Clear flags.
-                if (debug) {
-                    log("clf\n");
-                }
-                code++;
-                found = gt = lt = eq = 0;
-                break;
-            case OP_REWIND:
-                if (debug)
-                    log("rewind\n");
-                code++;
-                offset = 0;
-                break;
-            case OP_AND:
-                if (debug) {
-                    log("and\n");
-                }
-                for (i = 0; i < code[1]; i++) {
-                    current_mode->memory[offset] &= code[i+2];
-                }
-                offset += code[1];
-                code += code[1] + 2;
-                break;
-            case OP_OR:
-                if (debug) {
-                    log("or\n");
-                }
-                for (i = 0; i < code[1]; i++) {
-                    current_mode->memory[offset] |= code[i+2];
-                }
-                offset += code[1];
-                code += code[1] + 2;
-                break;
-            case OP_XOR:
-                if (debug) {
-                    log("xor\n");
-                }
-                for (i = 0; i < code[1]; i++) {
-                    current_mode->memory[offset] ^= code[i+2];
-                }
-                offset += code[1];
-                code += code[1] + 2;
-                break;
-            case OP_NOT:
-                if (debug) {
-                    log("not\n");
-                }
-                for (i = 0; i < code[1]; i++) {
-                    current_mode->memory[offset] = ~current_mode->memory[offset];
-                }
-                offset += code[1];
+            else
                 code += 2;
-                break;
-            case OP_VER:
-                if (debug) {
-                    log("ver\n");
-                }
-                code++;
-                eq = memcmp(&ver, code, 2);
-                if (eq < 0)
-                    lt = 1;
-                if (eq > 0)
-                    gt = 1;
-                eq = !eq;
+            if (debug) {
+#ifdef LOADER
+                log("jmpeq\n");
+#else
+                fprintf(stderr, "jmpeq %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmpne: // Jump to offset if not equal
+            code++;
+            if (!eq)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
                 code += 2;
-                break;
-            case OP_SEEK: // Jump to offset if greater than or equal
-                code++;
-                offset = (uint32_t)(code[0] + (code[1] << 8) + (code[2] << 16) + (code[3] << 24));
-                if (debug) {
+            if (debug) {
 #ifdef LOADER
-                    log("seek\n");
+                log("jmpne\n");
 #else
-                    fprintf(stderr, "seek %lx\n", offset);
+                fprintf(stderr, "jmpeq %u\n", code - bytecode);
 #endif
-                }
-                code += 4;
-                break;
-            case OP_ABORT:
-                code++;
-                if (debug)
-                    log("abort\n");
+            }
+            goto vm_sanity_check;
+        op_jmplt: // Jump to offset if less than
+            code++;
+            if (lt)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
+                code += 2;
+            if (debug) {
+#ifdef LOADER
+                log("jmplt\n");
+#else
+                fprintf(stderr, "jmplt %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmpgt: // Jump to offset if greater than
+            code++;
+            if (gt)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
+                code += 2;
+            if (debug) {
+#ifdef LOADER
+                log("jmplt\n");
+#else
+                fprintf(stderr, "jmplt %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmple: // Jump to offset if less than or equal
+            code++;
+            if (lt || eq)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
+                code += 2;
+            if (debug) {
+#ifdef LOADER
+                log("jmplt\n");
+#else
+                fprintf(stderr, "jmplt %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmpf: // Jump to offset if pattern found
+            code++;
+            if (found)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
+                code += 2;
+            if (debug) {
+#ifdef LOADER
+                log("jmplt\n");
+#else
+                fprintf(stderr, "jmplt %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_jmpnf: // Jump to offset if pattern NOT found
+            code++;
+            if (!found)
+                code = bytecode + (code[0] + (code[1] << 8));
+            else
+                code += 2;
+            if (debug) {
+#ifdef LOADER
+                log("jmplt\n");
+#else
+                fprintf(stderr, "jmplt %u\n", code - bytecode);
+#endif
+            }
+            goto vm_sanity_check;
+        op_clf: // Clear flags.
+            if (debug) {
+                log("clf\n");
+            }
+            code++;
+            found = gt = lt = eq = 0;
+            goto vm_sanity_check;
+        op_rewind:
+            if (debug)
+                log("rewind\n");
+            code++;
+            offset = 0;
+            goto vm_sanity_check;
+        op_and:
+            if (debug) {
+                log("and\n");
+            }
+            for (i = 0; i < code[1]; i++) {
+                current_mode->memory[offset] &= code[i+2];
+            }
+            offset += code[1];
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_or:
+            if (debug) {
+                log("or\n");
+            }
+            for (i = 0; i < code[1]; i++) {
+                current_mode->memory[offset] |= code[i+2];
+            }
+            offset += code[1];
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_xor:
+            if (debug) {
+                log("xor\n");
+            }
+            for (i = 0; i < code[1]; i++) {
+                current_mode->memory[offset] ^= code[i+2];
+            }
+            offset += code[1];
+            code += code[1] + 2;
+            goto vm_sanity_check;
+        op_not:
+            if (debug) {
+                log("not\n");
+            }
+            for (i = 0; i < code[1]; i++) {
+                current_mode->memory[offset] = ~current_mode->memory[offset];
+            }
+            offset += code[1];
+            code += 2;
+            goto vm_sanity_check;
+        op_ver:
+            if (debug) {
+                log("ver\n");
+            }
+            code++;
+            eq = memcmp(&ver, code, 2);
+            if (eq < 0)
+                lt = 1;
+            if (eq > 0)
+                gt = 1;
+            eq = !eq;
+            code += 2;
+            goto vm_sanity_check;
+        op_seek: // Jump to offset if greater than or equal
+            code++;
+            offset = (uint32_t)(code[0] + (code[1] << 8) + (code[2] << 16) + (code[3] << 24));
+            if (debug) {
+#ifdef LOADER
+                log("seek\n");
+#else
+                fprintf(stderr, "seek %lx\n", offset);
+#endif
+            }
+            code += 4;
+            goto vm_sanity_check;
+        op_abort:
+            code++;
+            if (debug)
+                log("abort\n");
 
-                panic("abort triggered, halting VM!\n");
-                break;
-            case OP_ABORTEQ:
-                code++;
-                if (debug)
-                    log("aborteq\n");
-                if (eq)
-                    panic("eq flag not set, halting VM!\n");
-                break;
-            case OP_ABORTNE:
-                code++;
-                if (debug)
-                    log("abortlt\n");
-                if (!eq)
-                    panic("eq flag not set, halting VM!\n");
-                break;
-            case OP_ABORTLT:
-                code++;
-                if (debug)
-                    log("abortlt\n");
-                if (lt)
-                    panic("lt flag set, halting VM!\n");
-                break;
-            case OP_ABORTGT:
-                code++;
-                if (debug)
-                    log("abortgt\n");
-                if (gt)
-                    panic("gt flag set, halting VM!\n");
-                break;
-            case OP_ABORTF:
-                code++;
-                if (debug)
-                    log("abortf\n");
-                if (found)
-                    panic("f flag set, halting VM!\n");
-                break;
-            case OP_ABORTNF:
-                code++;
-                if (debug)
-                    log("abortnf\n");
-                if (!found)
-                    panic("f flag is not set, halting VM!\n");
-                break;
-            case OP_NEXT:
-                if (debug) {
-                    log("next\n");
-                }
-                found = gt = lt = eq = 0;
+            panic("abort triggered, halting VM!\n");
+            goto vm_sanity_check;
+        op_aborteq:
+            code++;
+            if (debug)
+                log("aborteq\n");
+            if (eq)
+                panic("eq flag set, halting VM!\n");
+            goto vm_sanity_check;
+        op_abortne:
+            code++;
+            if (debug)
+                log("abortlt\n");
+            if (!eq)
+                panic("eq flag not set, halting VM!\n");
+            goto vm_sanity_check;
+        op_abortlt:
+            code++;
+            if (debug)
+                log("abortlt\n");
+            if (lt)
+                panic("lt flag set, halting VM!\n");
+            goto vm_sanity_check;
+        op_abortgt:
+            code++;
+            if (debug)
+                log("abortgt\n");
+            if (gt)
+                panic("gt flag set, halting VM!\n");
+            goto vm_sanity_check;
+        op_abortf:
+            code++;
+            if (debug)
+                log("abortf\n");
+            if (found)
+                panic("f flag set, halting VM!\n");
+            goto vm_sanity_check;
+        op_abortnf:
+            code++;
+            if (debug)
+                log("abortnf\n");
+            if (!found)
+                panic("f flag is not set, halting VM!\n");
+            goto vm_sanity_check;
+        op_next:
+            if (debug) {
+                log("next\n");
+            }
+            found = gt = lt = eq = 0;
 
-                bytecode = code + 1;
+            bytecode = code + 1;
 #ifndef LOADER
-                set_mode = 0;
-                current_mode = &modes[set_mode];
+            set_mode = 0;
+            current_mode = &modes[set_mode];
 #else
-                set_mode = 18;
-                current_mode = &modes[set_mode];
+            set_mode = 18;
+            current_mode = &modes[set_mode];
 #endif
-                offset = new_offset = 0;
-                code = bytecode;
-                break;
-            case OP_INJECT: // Read in data (from filename)
-                if (debug) {
+            offset = new_offset = 0;
+            code = bytecode;
+            goto vm_sanity_check;
+        op_inject: // Read in data (from filename)
+            if (debug) {
 #ifdef LOADER
-                    log("set\n");
+                log("set\n");
 #else
-                    fprintf(stderr, "set %s\n", &code[1]);
+                fprintf(stderr, "set %s\n", &code[1]);
 #endif
-                }
+            }
 
-                char* fname = (char*)&code[1];
+            char* fname = (char*)&code[1];
 #ifdef LOADER
-                (void)fname;
-                // NYI
+            (void)fname;
+            // NYI
 #else
-                FILE* f = cropen(fname, "r");
-                crread(current_mode->memory + offset, 1, crsize(f), f);
-                offset += crsize(f);
-                code += strlen(fname);
-                crclose(f);
+            FILE* f = cropen(fname, "r");
+            crread(current_mode->memory + offset, 1, crsize(f), f);
+            offset += crsize(f);
+            code += strlen(fname);
+            crclose(f);
 #endif
-                break;
-            case OP_STR:
-                ++code;
+            goto vm_sanity_check;
+        op_str:
+            ++code;
 #ifdef LOADER
-                log((char*)code);
-                log("\n");
+            log((char*)code);
+            log("\n");
 #else
-                fprintf(stderr, "%s\n", code);
+            fprintf(stderr, "%s\n", code);
 #endif
-                code += strlen((char*)code) + 1;
-                break;
-            default:
+            code += strlen((char*)code) + 1;
+            goto vm_sanity_check;
+        op_err:
 #ifndef LOADER
-                // Panic; not proper opcode.
-                fprintf(stderr, "Invalid opcode. State:\n"
-                                "  Relative:  %lu\n"
-                                "    Actual:  %lx:%lu\n"
-                                "  Memory:    %lx\n"
-                                "    Actual:  %lx\n"
-                                "  Code Loc:  %lx\n"
-                                "    Actual:  %lx\n"
-                                "  Opcode:    %hhu\n",
-                        (uint32_t)set_mode,
-                        (uint32_t)current_mode->memory,
-                        (uint32_t)current_mode->size,
-                        (uint32_t)offset,
-                        (uint32_t)(current_mode->memory + offset),
-                        (uint32_t)(code - bytecode),
-                        (uint32_t)code,
-                        *code);
+            // Panic; not proper opcode.
+            fprintf(stderr, "Invalid opcode. State:\n"
+                            "  Relative:  %lu\n"
+                            "    Actual:  %lx:%lu\n"
+                            "  Memory:    %lx\n"
+                            "    Actual:  %lx\n"
+                            "  Code Loc:  %lx\n"
+                            "    Actual:  %lx\n"
+                            "  Opcode:    %hhu\n",
+                    (uint32_t)set_mode,
+                    (uint32_t)current_mode->memory,
+                    (uint32_t)current_mode->size,
+                    (uint32_t)offset,
+                    (uint32_t)(current_mode->memory + offset),
+                    (uint32_t)(code - bytecode),
+                    (uint32_t)code,
+                    *code);
 #endif
-                panic("Halting startup.\n");
-                break;
-        }
+            panic("Halting startup.\n");
 
+    vm_sanity_check:
         if (offset > current_mode->size) { // Went out of bounds. Error.
 #ifndef LOADER
             fprintf(stderr, " -> %lx", offset);
