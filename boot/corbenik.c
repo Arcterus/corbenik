@@ -97,16 +97,16 @@ main(int argc, char** argv)
                 screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
                 si = 1;
 
-                clear_disp(TOP_SCREEN);
-                clear_disp(BOTTOM_SCREEN);
+                clear_disp(TOP_SCREEN, 1);
+                clear_disp(BOTTOM_SCREEN, 1);
             }
         } else {
             if (!si) {
                 screen_mode(RGBA8, get_opt_u32(OPTION_BRIGHTNESS)); // Use RGBA8 mode.
                 si = 1;
 
-                clear_disp(TOP_SCREEN);
-                clear_disp(BOTTOM_SCREEN);
+                clear_disp(TOP_SCREEN, 1);
+                clear_disp(BOTTOM_SCREEN, 1);
             }
 
             menu_handler();

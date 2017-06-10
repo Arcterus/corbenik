@@ -31,6 +31,8 @@ static unsigned int text_bottom_height = 10;
 uint8_t *top_bg;
 uint8_t *bottom_bg;
 
+uint8_t *top_buffer;
+
 unsigned char color_top = 0xf0;
 unsigned char color_bottom = 0xf0;
 int kill_output = 0;
@@ -50,6 +52,8 @@ void std_init(void) {
 
     top_bg     = malloc(TOP_SIZE);
     bottom_bg  = malloc(BOTTOM_SIZE);
+
+    top_buffer    = malloc(TOP_SIZE);
 
     log_buffer = malloc(LOG_BUFFER_SIZE);
 }
@@ -77,7 +81,7 @@ void rect(void* channel, unsigned int x, unsigned int y, unsigned int x2, unsign
     uint8_t* screen = NULL;
     unsigned int height = 0;
     if (channel == stdout) {
-        screen = framebuffers->top_left;
+        screen = top_buffer;
         height = TOP_HEIGHT;
     } else if (channel == stderr) {
         screen = framebuffers->bottom;
@@ -243,7 +247,7 @@ void dump_log(unsigned int force) {
 }
 
 void
-clear_disp(uint8_t *screen)
+clear_disp(uint8_t *screen, uint8_t flush)
 {
     if (screen == TOP_SCREEN)
         screen = framebuffers->top_left;
@@ -251,7 +255,11 @@ clear_disp(uint8_t *screen)
         screen = framebuffers->bottom;
 
     if (screen == framebuffers->top_left || screen == framebuffers->top_right) {
+        screen = top_buffer;
         memcpy(screen, top_bg, TOP_SIZE);
+        if(flush) {
+           crflush(TOP_SCREEN);
+        }
 
         if (!kill_output && get_opt_u32(OPTION_DIM_MODE)) {
             for(int i=0; i < TOP_SIZE; i += 4) {
@@ -300,10 +308,11 @@ draw_character(uint8_t *screen, const unsigned int character, unsigned int ch_x,
     unsigned int width = 0;
     unsigned int height = 0;
     uint8_t* buffer_bg;
-    if (screen == framebuffers->top_left || screen == framebuffers->top_right) {
+    if (screen == framebuffers->top_left || screen == framebuffers->top_right || screen == top_buffer) {
         width = TOP_WIDTH;
         height = TOP_HEIGHT;
         buffer_bg = top_bg;
+        screen = top_buffer;
     } else if (screen == framebuffers->bottom) {
         width = BOTTOM_WIDTH;
         height = BOTTOM_HEIGHT;
@@ -486,7 +495,7 @@ putc(void *buf, int c)
         if (buf == TOP_SCREEN) {
             width = text_top_width;
             height = text_top_height;
-            screen = framebuffers->top_left;
+            screen = top_buffer;
             cursor_x = &top_cursor_x;
             cursor_y = &top_cursor_y;
             color = &color_top;
@@ -505,7 +514,7 @@ putc(void *buf, int c)
         }
 
         while (cursor_y[0] >= height) {
-            clear_disp(buf);
+            clear_disp(buf, 0);
             cursor_x[0] = 0;
             cursor_y[0] = 0;
         }
@@ -519,6 +528,7 @@ putc(void *buf, int c)
         switch (c) {
             case '\n':
                 cursor_y[0]++;
+                if(screen == top_buffer) crflush(TOP_SCREEN);   // top screen is line buffered
             // Fall through intentional.
             case '\r':
                 cursor_x[0] = 0; // Reset to beginning of line.
@@ -633,9 +643,11 @@ put_int(void *channel, int n, int length)
 void
 crflush(void *channel)
 {
-    if (channel == BOTTOM_SCREEN) {
+    if (channel == TOP_SCREEN) {
+        memcpy(framebuffers->top_left, top_buffer, TOP_SIZE);
+    } else if (channel == BOTTOM_SCREEN) {
         dump_log(1);
-    } if (channel != TOP_SCREEN && channel != BOTTOM_SCREEN) {
+    } else {
         f_sync(&(((FILE *)channel)->handle)); // Sync to disk.
     }
 }

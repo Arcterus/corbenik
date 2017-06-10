@@ -20,10 +20,11 @@ header(const char *append)
 }
 
 void show_help(const char* help) {
-    clear_disp(TOP_SCREEN);
+    clear_disp(TOP_SCREEN, 0);
     set_cursor(TOP_SCREEN, 0, 0);
     header("Any:Back");
     fprintf(stdout, "%s", help);
+    crflush(TOP_SCREEN);     // Ensure the buffer is flushed
     wait_key();
 }
 
@@ -47,7 +48,7 @@ show_menu(struct options_s *options)
     int window_top = 0, window_bottom = window_size;
     int less_mode = 0;
 
-    clear_disp(TOP_SCREEN);
+    clear_disp(TOP_SCREEN, 0);
 
     if (options[0].name == NULL) {
         set_cursor(TOP_SCREEN, 0, 0);
@@ -131,6 +132,8 @@ show_menu(struct options_s *options)
             fprintf(TOP_SCREEN, "%s\x1b[0m", options[i].name);
         }
 
+        crflush(TOP_SCREEN);    // Ensure the buffer is flushed
+
         uint32_t key = wait_key();
 
         switch (key) {
@@ -170,19 +173,19 @@ show_menu(struct options_s *options)
                     options[cursor_y].func(options[cursor_y].param);
                 } else if (options[cursor_y].handle == break_menu) {
                     exit = 1;
-                    clear_disp(TOP_SCREEN);
+                    clear_disp(TOP_SCREEN, 0);
                     cursor_y = cursor_min;
                 }
                 break;
             case CTR_HID_B:
                 exit = 1;
-                clear_disp(TOP_SCREEN);
+                clear_disp(TOP_SCREEN, 0);
                 cursor_y = cursor_min;
                 break;
             case CTR_HID_SELECT:
                 if (options[cursor_y].desc[0] != 0) {
                     show_help(options[cursor_y].desc);
-                    clear_disp(TOP_SCREEN);
+                    clear_disp(TOP_SCREEN, 0);
                 }
                 break;
             default:
@@ -197,17 +200,17 @@ show_menu(struct options_s *options)
         if (less_mode) {
             window_top = cursor_y;
             window_bottom = window_top + window_size;
-            clear_disp(TOP_SCREEN);
+            clear_disp(TOP_SCREEN, 0);
         }
 
         if (cursor_y < window_top + cursor_min) {
             window_top = cursor_y - cursor_min;
             window_bottom = window_top + window_size;
-            clear_disp(TOP_SCREEN);
+            clear_disp(TOP_SCREEN, 0);
         } else if (cursor_y > window_bottom - cursor_min) {
             window_bottom = cursor_y + cursor_min;
             window_top = window_bottom - window_size;
-            clear_disp(TOP_SCREEN);
+            clear_disp(TOP_SCREEN, 0);
         }
     }
 

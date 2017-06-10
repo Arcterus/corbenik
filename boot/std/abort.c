@@ -15,7 +15,7 @@ void panic(char* x, ...) {
     va_end(ap);
 
     wait_key(1);
-    clear_disp(stderr);
+    clear_disp(stderr, 1);
     set_cursor(stderr, 0, 0);
     poweroff();
 }

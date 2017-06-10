@@ -152,8 +152,9 @@ void set_cursor(void *channel, unsigned int x, unsigned int y);
 /* Clear the display specified to black or a background.
  *
  * \param screen Which screen to clear.
+ * \param flush  Whether or not a flush should be forced.
  */
-void clear_disp(uint8_t *screen);
+void clear_disp(uint8_t *screen, uint8_t flush);
 
 /* Minimal fprintf implementation.
  *
