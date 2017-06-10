@@ -100,6 +100,7 @@ boot:
     // Reload argc and argv.
     ldr r0, argc
     ldr r1, argv
+    ldr r2, magic
 
     // Check if FIRM (again...)
     cmp r6, #1
@@ -111,8 +112,8 @@ boot:
 
 firmboot:
     // Move ARM11 entrypoint saved earlier into place
-    mov r2, #0x20000000
-    str r4, [r2, #-4]
+    mov r3, #0x20000000       // XXX: ???
+    str r4, [r3, #-4]
 
     // Boot using ARM9 entrypoint saved earlier
     bx r5
@@ -123,3 +124,4 @@ value:  .int 0x23efffff
 offset: .int 0x23f00000
 argc:   .ascii "ARGC"
 argv:   .ascii "ARGV"
+magic:  .int 0x2BEEF

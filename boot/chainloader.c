@@ -74,17 +74,16 @@ void chainload_file(void* data)
     uint32_t* off = (uint32_t*) &chain_data[size];
 
     off[0] = (uint32_t)off + 8; // char**
-    off[1] = (uint32_t)off + 12;
+    off[1] = (uint32_t)CAKEHAX_ADDR_VRAM;
     off[2] = (uint32_t)off + 16; // char*
-    off[3] = (uint32_t)CAKEHAX_ADDR_VRAM;
 
-    char* arg0 = (char*)&off[4];
+    char* arg0 = (char*)&off[3];
     memcpy(arg0, chain_file, strlen(chain_file) + 1);
 
     uint32_t* argc_off = (uint32_t*)memfind(bootstrap, b_size, "ARGC", 4);
     uint32_t* argv_off = (uint32_t*)memfind(bootstrap, b_size, "ARGV", 4);
 
-    *argc_off = 2;    // FIXME: afaict the payload isn't noticing that this is 2
+    *argc_off = 2;
     *argv_off = (uint32_t)off;
 
     fprintf(stderr, " Done\nChanging display mode and chainloading...\n");
@@ -92,15 +91,16 @@ void chainload_file(void* data)
     // XXX - Refactor arm11
     screen_mode(1, get_opt_u32(OPTION_BRIGHTNESS)); // Because RGBA8 screeninit is non-standard...ugh
 
-    // Copy CakeHax struct where it is expected (at 0x23FFFE00)
-    // It's very very likely we'll corrupt memory with this, but we aren't coming back anyways as of the
-    // next call, so not my problem
+    // Copy CakeHax struct where it is expected (at 0x23FFFE00) for old payloads
+    // and to VRAM for new payloads.  It's very very likely we'll corrupt memory
+    // with this, but we aren't coming back anyways as of the next call, so not
+    // my problem
     memcpy((void*)CAKEHAX_ADDR_FCRAM, framebuffers, sizeof(struct framebuffers));
-    memcpy((void*)CAKEHAX_ADDR_VRAM, framebuffers, sizeof(struct framebuffers));    // FIXME: ignored by payload
+    memcpy((void*)CAKEHAX_ADDR_VRAM, framebuffers, sizeof(struct framebuffers));
 
     uint32_t isFirm = *((uint32_t *)chain_data) == FIRM_MAGIC ? 1 : 0;
 
-    ((void(*)(void*, uint32_t, uint32_t))BOOTSTRAP_ADDR)(chain_data, size + 256 + 16, isFirm); // Size of payload + argv.
+    ((void(*)(void*, uint32_t, uint32_t))BOOTSTRAP_ADDR)(chain_data, size + 256 + 12, isFirm); // Size of payload + argv.
 
     while(1);
 }
